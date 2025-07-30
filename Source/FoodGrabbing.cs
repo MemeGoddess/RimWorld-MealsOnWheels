@@ -20,15 +20,15 @@ namespace Meals_On_Wheels
 				getter.RaceProps.ToolUser && getter.health.capacities.CapableOf(PawnCapacityDefOf.Manipulation))
 			{
 				Log.Message($"There be no food for " + eater);
-				List<Pawn> pawns = eater.Map.mapPawns.SpawnedPawnsInFaction(Faction.OfPlayer).FindAll(
+				var pawns = eater.Map.mapPawns.SpawnedPawnsInFaction(Faction.OfPlayer).FindAll(
 					p => p != getter &&
 					!p.Position.IsForbidden(getter) && 
 					getter.CanReach(p, PathEndMode.OnCell, Danger.Some)
 				);
-				foreach (Pawn p in pawns)
+				foreach (var p in pawns)
 				{
 					Log.Message($"Food soon rotten on " + p + "?");
-					Thing thing = FoodUtility.BestFoodInInventory(p, eater, FoodPreferability.MealAwful);
+					var thing = FoodUtility.BestFoodInInventory(p, eater, FoodPreferability.MealAwful);
 					if (thing != null && thing.TryGetComp<CompRottable>() is CompRottable compRottable &&
 						compRottable != null && compRottable.Stage == RotStage.Fresh && compRottable.TicksUntilRotAtCurrentTemp < GenDate.TicksPerDay / 2)
 					{
@@ -39,10 +39,10 @@ namespace Meals_On_Wheels
 						return;
 					}
 				}
-				foreach (Pawn p in pawns)
+				foreach (var p in pawns)
 				{
 					Log.Message($"Food on " + p + "?");
-					Thing thing = FoodUtility.BestFoodInInventory(p, eater, FoodPreferability.DesperateOnly, FoodPreferability.MealLavish, 0f, !eater.IsTeetotaler());
+					var thing = FoodUtility.BestFoodInInventory(p, eater, FoodPreferability.DesperateOnly, FoodPreferability.MealLavish, 0f, !eater.IsTeetotaler());
 					if (thing != null)
 					{
 						Log.Message($"Food is " + thing);
@@ -50,6 +50,27 @@ namespace Meals_On_Wheels
 						foodDef = FoodUtility.GetFinalIngestibleDef(foodSource, false);
 						__result = true;
 						return;
+					}
+				}
+
+				var shuttles = eater.Map.listerThings.AllThings.OfType<Building_PassengerShuttle>().ToList();
+				shuttles.RemoveAll(x => x.Faction != Faction.OfPlayer);
+				foreach (var shuttle in shuttles)
+				{
+					var innerContainer = shuttle.TryGetComp<CompTransporter>()?.innerContainer;
+					for (int index = 0; index < innerContainer.Count; ++index)
+					{
+						Thing food = innerContainer[index];
+						if (food.def.IsNutritionGivingIngestible && food.IngestibleNow && eater.WillEat(food, eater, allowVenerated: false) && food.def.ingestible.preferability >= FoodPreferability.DesperateOnly && food.def.ingestible.preferability <= FoodPreferability.MealLavish && (!eater.IsTeetotaler() || !food.def.IsDrug) && (double)FoodUtility.NutritionForEater(eater, food) * (double)food.stackCount >= (double)0f)
+						{
+							innerContainer.TryDrop(food, ThingPlaceMode.Near, 1, out _);
+
+							Log.Message($"Food is " + food);
+							foodSource = food;
+							foodDef = FoodUtility.GetFinalIngestibleDef(foodSource, false);
+							__result = true;
+							return;
+						}
 					}
 				}
 			}
