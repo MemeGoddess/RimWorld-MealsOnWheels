@@ -13,7 +13,7 @@ namespace Meals_On_Wheels
 	class FoodGrabbing
 	{
 		[HarmonyPriority(Priority.Low)]
-		public static void Postfix(ref bool __result, Pawn getter, Pawn eater, ref Thing foodSource, ref ThingDef foodDef, bool canUseInventory, bool canUsePackAnimalInventory)
+		public static void Postfix(ref bool __result, Pawn getter, Pawn eater, ref Thing foodSource, ref ThingDef foodDef, bool canUseInventory, bool canUsePackAnimalInventory, bool ignoreReservations)
 		{
 			if (__result || !eater.IsFreeColonist || !canUseInventory || !canUsePackAnimalInventory ||
 			    !getter.RaceProps.ToolUser || !getter.health.capacities.CapableOf(PawnCapacityDefOf.Manipulation))
@@ -23,10 +23,7 @@ namespace Meals_On_Wheels
 			}
 
 			var pawns = eater.Map.mapPawns.SpawnedPawnsInFaction(Faction.OfPlayer).FindAll(
-				p => p != getter &&
-				     !p.Position.IsForbidden(getter) && 
-				     getter.CanReach(p, PathEndMode.OnCell, Danger.Some) &&
-						 (p.inventory?.innerContainer?.Any() ?? false)
+				p => CanTakeFoodFrom(getter, p, ignoreReservations)
 			);
 
 			foreach (var p in pawns)
@@ -84,6 +81,20 @@ namespace Meals_On_Wheels
 					return;
 				}
 			}
+		}
+
+		private static bool CanTakeFoodFrom(Pawn getter, Pawn holder, bool ignoreReservations)
+		{
+			if (holder == getter || !(holder.inventory?.innerContainer?.Any() ?? false))
+				return false;
+
+			if (holder.jobs?.curDriver is JobDriver_FeedBaby)
+				return false;
+
+			if (holder.Position.IsForbidden(getter) || !getter.CanReach(holder, PathEndMode.OnCell, Danger.Some))
+				return false;
+
+			return ignoreReservations || getter.CanReserve(holder);
 		}
 	}
 }
